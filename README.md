@@ -1,2 +1,2 @@
 # reporting
-processing of logfiles to get performance statistic based on message rates
+processing of logfiles to get performance metrics based on message rates
