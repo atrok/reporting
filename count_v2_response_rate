@@ -1,0 +1,517 @@
+### script counts amount of messages every applications that presents in log has sent
+### mess example: 14:02:31.697 Trc 04541 RequestRouteCall received from [62] (0000002b Routing_LDS_1 30.128.65.16:44416)
+BEGIN {
+# describing patterns
+arr[1]="disconnected on"
+arr[2]="authorized"
+arr[3]="RequestRegisterClient"
+arr[4]="New client"
+
+# arr_old[1]=0 # file creation timestamp
+# arr_new[1]=0 # the last read timestamp
+
+for (x in arr) {
+#	print arr[x]
+	pattern=pattern arr[x] "|"
+	}
+#print pattern
+#FIELDWIDTHS = "23 4 6 100 18"
+
+getline
+fname=FILENAME
+
+}
+
+BEGINFILE{
+        fname=FILENAME
+	if (ERRNO){
+		printf "error opening %s file:$s",ERRNO,fname
+		nextfile}
+	if ((arr_new[1]!=0)) {for (i in arr_new) arr_old_temporary[i]=arr_new[i]} else {delete arr_new}
+    
+    counter=1
+}
+
+{
+fname2=FILENAME
+if (match(fname,fname2)==0){
+	printRes(fname)
+	fname=fname2
+	}
+
+processing()
+
+}
+
+function sampling(num,sample){#round time based on sample rate (1 min, 5 min, 10min,30 min,)
+# ie
+# 1 min : 09:55:19.355 -> 09:55:19.000
+# 10 min: 09:55:19.355 -> 09:50:00.000
+# 30 min: 09:55:19.355 -> 09:30:00.00  
+}
+function processing(){
+#print $1
+	if ($1 ~ /^(@|([[:digit:]])*[-:])/) {#([[:digit:]].:)
+	#print "debug: " $0
+    
+    time_processing(time,null,1)   #array[]{yyyy,mm,dd,hh,mm,sec,msec}
+    #1 - 1 min sampling
+    #10 - 10 min sampling
+    sec=time[4]":"time[5]#":"time[6] rate in minutes
+    
+    if ($2 ~ /(Trc|Std|Int|Dbg)/){
+    #09:47:05.046 Trc 04541 Message MSGCFG_GETOBJECTINFO received from 528 (InteractionWorkspace  'Workspace')
+    #09:47:06.944 Trc 04541 Message MSGCFG_GETSCHEMAINFO received from 528 (InteractionWorkspace  'Workspace')
+    #09:47:07.015 Trc 04541 Message MSGCFG_GETOBJECTINFO received from 528 (InteractionWorkspace  'Workspace')
+    #09:47:07.116 Trc 04541 Message MSGCFG_REGISTEROBJECTTYPEEX received from 528 (InteractionWorkspace  'Workspace')
+    # $1           $2   $3  $4          $5                          $6     $7   $8  $9                       $10     
+    # time                              type                    direction       client
+    #09:55:19.355 Trc 04542 Message MSGCFG_ENDOBJECTSLIST sent to 70 (InteractionWorkspace  'Workspace')
+    #09:55:19.357 Trc 04542 Message MSGCFG_CLIENTREGISTERED sent to 576 (InteractionWorkspace  'Workspace')
+    #09:55:19.358 Trc 04542 Message MSGCFG_CLIENTREGISTERED sent to 577 (InteractionWorkspace  'Workspace')
+    #09:55:19.392 Trc 04542 Message MSGCFG_ENDOBJECTSLIST sent to 490 (InteractionWorkspace  'Workspace')
+    #09:55:19.393 Trc 04542 Message MSGCFG_ENDOBJECTSLIST sent to 575 (InteractionWorkspace  'Workspace')
+    #09:55:19.411 Trc 04542 Message MSGCFG_SERVERPROTOCOL sent to 578 ( '')
+    #09:51:13.159 Trc 24308 Message MSGCFG_OBJECTCHANGED2 (0x88968940) generated
+    #09:51:13.159 Trc 04542 Message MSGCFG_OBJECTCHANGED2 (0x88968940) sent to 317 (InteractionWorkspace  'Workspace')
+    #10:44:51.946 Trc 04542 Message MSGCFG_OBJECTADDED2 (0x7227a640) sent to 70 (CCView 'CCPulse')
+    #
+    # response[counter]{rawtime,time,responsetime,client,direction}
+    # rate[sec]=09:55:19
+    # rate[min]=09:55
+    # rate[hours]=09
+    # rate[time][msgID]
+
+
+
+            message=normalize()           
+
+           if ($4 ~ /Message/){
+                msgName=$5	
+           }else{
+                msgName=$4	
+           }
+        
+        # store the messages and its calculated rate into array where index is compound value assembled from value of $3 and msgName
+        # it should look like as follows:
+        # match_num_per_mes[24216Transaction] = 50
+        # match_num_per_mes[04541MSGCFG_GETOPERATIONALMODE] = 1
+        # 
+        # summary[04524Client] =  Trc Client disconnected                                                                             :        179
+        # summary[04542MSGCFG_CLIENTINFO] =  Trc Message MSGCFG_CLIENTINFO sent to                                                               :          8
+        # summary[04542updateResponse] =  Trc Message updateResponse sent to                                                                  :         38
+
+        #match_num[$3]+=1
+            
+            msgID=$3 msgName
+            rate[sec][msgID]+=1
+            #match_clients[$9]=$10
+    #		summary[$3,msgName]=sprintf("%-100.100s : %10.10s",mess[$3],match_num_per_mes[$3,msgName])
+                
+    #print "debug: counter " counter
+            if ($0 ~ /Message.+(received from|sent to)/){
+            #print "debug: call time processing 1"
+
+                response[counter]["rawtime"]=$1
+                response[counter]["msgtype"]=$5
+                direction=$6
+                client=$8
+                msgID=$6
+                if ($6 ~ /\(.*\)/) #avoid Message MSGCFG_OBJECTADDED2 (0x7227a640)  Message MSGCFG_OBJECTCHANGED2 (0000000063EB02B0) 
+                {
+                    client=$9
+                    direction=$7
+                    msgID=$7
+                }
+                response[counter]["client"]=client
+                response[counter]["direction"]=direction
+                
+                #walk_array(response)
+           #print "debug: call time processing 2"
+                #time_processing(d)#response[counter]["time"]
+                response[counter]["responsetime"]=0
+
+                rate[sec][msgID]+=1
+                
+                #print $0
+                
+                #walk_array(response)
+                #walk_array(arr_new)
+                
+     #           if (counter>1){
+                #print "debug: calculate response rate" 
+     #           time_processing(a,response[counter-1]["rawtime"])
+                #print "debug: calculate response rate b"  
+     #           time_processing(c,response[counter]["rawtime"])
+                
+     #               response[counter]["responsetime"]=calc_time_scalar(a,c)
+     #           }
+     #           counter=counter+1
+            }
+            
+            
+            
+            #mess["name"]=$3 message
+            
+            
+            
+           
+
+            
+        }
+
+            #14:27:37.743 Trc 04520 New client 931 connected    
+    if ($0 ~ /Trc.+client.+connected/){
+                msgID=$7
+                message="New client connection"
+                rate[sec][msgID]+=1
+            }
+            
+    #14:28:15.331 Trc 04524 Client '376' disconnected        
+    if ($0 ~ /Trc.+client.+disconnected/){
+                msgID=$6
+                message="Client disconnected"
+                rate[sec][msgID]+=1
+            }
+
+    #14:28:15.345 Number of GUI clients: 914
+    #14:28:15.345 Total number of clients: 915        
+
+        
+        if ($0 ~ /Total number of clients/){
+            
+                msgID="total clients"
+                message=msgID
+                rate[sec][msgID]=$6
+        }
+            
+        if ($0 ~ /Number of GUI clients/){
+                msgID="total gui clients"
+                message=msgID
+                rate[sec][msgID]=$6
+        }
+
+# 12:16:48.843 Trc 24215 There are [1] objects of type [CfgHost] sent to the client [1132] (application [Workspace], type [InteractionWorkspace ])
+        
+        if ($0 ~ /There are \[[0-9]{3,}\] objects of type/){
+
+                msgID="ObjectSent" $10 "<1000"
+                message=msgID
+                rate[sec][msgID]+=1
+                match_num_per_mes["time"][msgID]=message
+        }        
+
+        
+        if ($0 ~ /There are \[[0-9]{4,}\] objects of type/){
+
+                msgID="ObjectSent" $10 ">1000"
+                message=msgID
+                rate[sec][msgID]+=1
+                match_num_per_mes["time"][msgID]=message
+        }     
+
+        if ($0 ~ /There are \[[0-9]{3,}\] objects of type/){
+                msgID="ObjectSent<1000"
+                message=msgID
+                rate[sec][msgID]+=1
+        }        
+
+        
+        if ($0 ~ /There are \[[0-9]{4,}\] objects of type/){
+                msgID="ObjectSent>1000"
+                message=msgID
+                rate[sec][msgID]+=1
+        }      
+
+#MSGCFG_GETOBJECTINFO received from.*Workspace.*\n.*\n.*\n.*\n.*\n.*\n.*\n.*\n.*\n.*\n.*\n.*\n.*CfgBaseTenant\[@DBID = 101\]\/persons\/\*.*\(@name = '\*'\)
+
+        if ($0 ~ /MSGCFG_CLIENTREGISTERED sent to.*Workspace/){
+        #print $0
+                msgID="WorkspaceRegistered"
+                message=msgID
+                rate[sec][msgID]+=1
+                match_num_per_mes["time"][msgID]=message
+                
+                #walk_array(rate[sec],sec)
+        }
+#There are \[\d{3,}\] objects of type \[CfgPerson\].*\[Workspace\]
+        
+        if ($0 ~ /There are \[[0-9]{3,}\] objects of type \[CfgPerson\].*\[Workspace.+\]/){
+                msgID="WorkspacePersonsSent"
+                message=msgID
+                rate[sec][msgID]+=1
+                match_num_per_mes["time"][msgID]=message
+        }
+        
+        #print "debug: " msgID " message:" message
+        match_num_per_mes["time"][msgID]=message  # collection of unique column names
+    }
+    
+    #print msgID
+    #walk_array(rate[sec],sec)
+}
+
+function normalize(){
+        m=""
+		for(i=1;i<=NF;i++){ ## getting rid of punctuation and variable parts of message to be able to print uniform message
+			
+                if ($i ~ /(^[^([:digit:]|[:punct:])])/ ) {
+		       	 	m = m" "$i
+                    sub(/[([:digit:]|[:punct:])]/,"",m)                    
+               		
+               	}
+	    }
+        
+        
+        
+        
+        return m
+
+}
+
+function asort_arr(arrr){#based on structure of rate array
+#print "asort_arr function is running"
+# we call it to get array sorted 0-->9
+
+nn=asorti(arrr,ind,"@ind_str_asc")
+
+   # for (i=1;i<n;i++){ 
+     for (i=1;i<=nn;i++){ #061015 atrok i<=n to get all records in summary printed out
+     
+    # print "debug ---------------------" i "  ind "ind[i]
+    # walk_array(arrr[ind[i]])
+     #print ind[i] " n:" nn
+        #printf("%.6s --> %s\n", ind[i],ind[i])
+       # print "debug: i=" i
+        #result[ind[i]]=getRateForCategory(arrr[ind[i]])
+        printf("%s,%s\n",ind[i],getLine(arrr[ind[i]]))
+        #result["messsage"]=
+        #walk_array(arrr,ind[i])
+    }
+
+}
+
+function printRes(fname,results){
+print "/----------------- Result output: " fname " ---------------------/"
+printf " %-5s %-90s %20s %20s %8s %8s %8s %8s %8s %8s\n","Msg#","Text message","Qty","Rate (msg/sec)","Years","Months","Days","Hours","Minutes","Secs"
+printf "---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n"
+ #	asort_arr(mess)
+ #	asort_arr(match_num)
+  	asort_arr(match_num_per_mes)
+    #walk_array(rate)
+    #walk_array(response)
+    #PROCINFO["sorted_in"] = "@val_str_asc" # ser array sort ordering
+	asort_arr(rate)
+#	asort_arr(match_clients)
+	
+    delete sorted_in
+	delete mess
+	delete match_num
+	delete match_num_per_mes
+	delete mess_content
+	delete summary
+	delete match_clients
+}
+
+#this function is to be called on per line basis
+#it parses the line to retrieve timestamp and returns array[]{yyyy,mm,dd,hh,mm,sec,msec} 
+#use this array to feed to calc_time_scalar
+# if provided $value then it would parse it into array
+# in opposite case it parses $0 and derives date from there
+# $sampling is needed if we need to round time to some predefined value
+function time_processing(arr_new,value,sampling){ # see http://stackoverflow.com/questions/12349546/awk-issue-return-an-array-from-user-defined-function
+    delete arr_new
+    if(!value){
+        if ($1 ~ /^(@|[0-9].\:[0-9].\:[0-9].\.|([0-9].+[-:]){2,})/){
+            sub(/^@/,"",$1)
+               #print "time!!!"
+            if ($0 ~ /Check point/) {# 13:16:54.058 Trc 04120 Check point 2014-09-16T13:16:54
+                                     #    1          2     3    4     5            6
+                name=$6
+                split(name,arr_new,/[T\.\:\-]/,seps)
+                #n=asort(arr_new,dest);### don't know why we need it
+            }else{
+                name=$1
+                #print "debug time3: " name " "length(name)
+                if (13<length($1)) {
+                    
+                    split(name,arr_new,/[T\.\:\-]/,seps)
+                    }else{
+                         #    13:16:54.215 Trc 04541 Message MSGCFG_GETOBJECTINFO received from 224 (CCView 'CCPulse_701')
+                                #        1
+                        #print "debug: " name
+                    # 2015-09-17T19:32:29.778
+                        split(name,arr_new_time,/[@\:\.T]/,seps) # split(string, array [, fieldsep [, seps ] ])
+                        for (b in arr_new_time){
+                            arr_new[b+3]=arr_new_time[b] # i+3 is offset because of asort_new_time has no date but time only, first 3 indices refer to dd mm yy 
+
+                        }
+                }
+            }
+            #print "debug time1: " name " "length(name)
+        
+        }else{ 	 ## 1. Time the file was created (arr_old)
+            if ($0 ~ /^Local time\:/){  # it will work in case file has a predefined Genesys format	
+                                        # Local time:       2014-09-16T13:14:58.465
+                                        #   1     2                    3
+                name=$3
+                split(name,arr_old,/[T\.\:\-]/)
+                for (i in arr_old){
+                    arr_new[i]=arr_old[i]
+                }                  		
+            }
+        }
+    }else{
+            print "debug time2: " value " " length(value)
+            if (13<length(value)) {
+                    
+                    split(name,arr_new,/[T\.\:\-]/,seps)
+                    }else{
+    
+                split(value,arr_new_time,/[@\:\.T]/,seps) # split(string, array [, fieldsep [, seps ] ])
+                for (b in arr_new_time){
+                    arr_new[b+3]=arr_new_time[b] # i+3 is offset because of asort_new_time has no date but time only, first 3 indices refer to dd mm yy 
+
+                }
+            }
+    
+    }
+    
+    if (sampling){
+    		switch (sampling){
+		
+				case 10:  # 10 min samples
+                    arr_new[7]=000
+					arr_new[6]=00
+                    arr_new[5]=int(arr_new[5]/sampling)*10
+					break
+				case 1: arr_new[7]=000 # get days out of calculated months
+					break
+				case 3: koef_t=24 # get hours out of calculated days
+					break
+				case 4:	koef_t=60 # get minutes out of calculated hours
+					break
+				case 5: koef_t=60 # get seconds out of calculated minutes
+					break
+				default:          
+			}
+    }
+    
+    sampling=""
+
+}
+
+function calc_time_scalar(start_time, end_time){ #returns elapsed time since the beginning of the file
+	time_scalar=0
+
+	n=asort(end_time,dest); #asort is a way to get length of array end_time, sideeffect however is that all indices could be lost. AWK copies the source array into the dest array and then sorts dest, destroying its indices.
+    
+	for (i = 1; i <= n-1; i++){
+	#print "значение ",i," элемента массива end_time=",end_time[i], "against start_time=",start_time[i]
+		
+		koef=get_koef(i)
+		if (end_time[i]<start_time[i]) { 
+#printf "index %s, end_time[%s]=%s,start_time[%s]=%s, time[i-1]=%s \n",i,i,end_time[i],i,start_time[i],time[i-1]
+			time[i-1]=time[i-1]-1
+			koef=get_koef(i-1)
+		} else koef=0    # to avoid situations with negative result of substraction
+
+		time[i]=end_time[i]+1*koef-start_time[i]
+#print koef,end_time[i],start_time[i],time[i]
+              	
+	}
+		for (i=1;i<=n;i++){
+#print "calculating time_scalar: ", time_scalar, get_koef(i), time[i]
+			time_scalar=(time_scalar+time[i])*get_koef(i)
+
+		}
+
+		#print time_scalar
+		#rate=kolvo/time_scalar
+		## printf "elapsed time: %5s yrs %5s mnt %5s dd %5s hrs %5s min %5s sec, matches found: %-5s, rate: %-5s per sec\n",time[1],time[2],time[3],time[4],time[5],time[6],kolvo,rate
+        return time_scalar    
+}
+
+function get_koef(i){
+		
+		switch (i){
+		
+				case 1:  # get days out of calculated years
+					koef_t=365
+					break
+				case 2: koef_t=30 # get days out of calculated months
+					break
+				case 3: koef_t=24 # get hours out of calculated days
+					break
+				case 4:	koef_t=60 # get minutes out of calculated hours
+					break
+				case 5: koef_t=60 # get seconds out of calculated minutes
+					break
+				default:          koef_t=1
+			}
+		#printf "koef based on index:%5s koef %5s index\n",koef_t,i
+ 		return koef_t
+}
+
+function create_msg_rate(){
+    #print "create msg rate"
+    #calculate elapsed time since the beginning of the file
+    times=calc_time_scalar(arr_old,arr_new)
+    
+    for (i in summary){
+    
+        rate = match_num_per_mes[i] / times
+        string=sprintf ("%10.1f %15s %8s %8s %8s %8s %8s",rate, time[1],time[2],time[3],time[4],time[5],time[6])
+        summary[i]=summary[i] string
+    
+    
+    }
+    
+}
+
+function getLine(ar){
+    string=""
+    f=asorti(match_num_per_mes["time"],indx)
+    for(k=1;k<=f;k++){
+    #print "debug: "ind[i]
+    #walk_array(arr)
+        if (!ar[indx[k]]){
+            string = string  "ind:"k "," 0 ","
+        }else{
+            string = string "ind:"k "," ar[indx[k]] ","
+        }
+    }
+    
+    return string
+}
+
+function get_categories(arr2){
+    
+}
+function walk_array(arr, name, i){
+    
+    if (isarray(arr)){
+        for (i in arr) {
+        #print i "\n"
+            if (isarray(arr[i]))
+                walk_array(arr[i], (name "," i ","))
+            else
+                printf("%s,%s,%s\n", name, i, arr[i])
+                
+        }
+    }else{
+    print arr " is not array"
+    }
+
+}
+
+ENDFILE {
+#print "END"
+#walk_array(match_num_per_mes,"match_num_per_mes")
+#create_msg_rate()
+#printRes(fname,set)
+}
+END {
+printRes(fname,set)
+}
+
