@@ -54,7 +54,7 @@ function processing(){
 	if ($1 ~ /^(@|([[:digit:]])*[-:])/) {#([[:digit:]].:)
 	#print "debug: " $0
     
-    time_processing(time,null,1)   #array[]{yyyy,mm,dd,hh,mm,sec,msec}
+    time_processing(time,null,10)   #array[]{yyyy,mm,dd,hh,mm,sec,msec}
     #1 - 1 min sampling
     #10 - 10 min sampling
     sec=time[4]":"time[5]#":"time[6] rate in minutes
@@ -129,10 +129,12 @@ function processing(){
                 #walk_array(response)
            #print "debug: call time processing 2"
                 #time_processing(d)#response[counter]["time"]
+                
                 response[counter]["responsetime"]=0
 
                 rate[sec][msgID]+=1
                 
+                message = msgID
                 #print $0
                 
                 #walk_array(response)
@@ -163,14 +165,14 @@ function processing(){
             #14:27:37.743 Trc 04520 New client 931 connected    
     if ($0 ~ /Trc.+client.+connected/){
                 msgID=$7
-                message="New client connection"
+                message="#New client connection"
                 rate[sec][msgID]+=1
             }
             
     #14:28:15.331 Trc 04524 Client '376' disconnected        
     if ($0 ~ /Trc.+client.+disconnected/){
                 msgID=$6
-                message="Client disconnected"
+                message="#Client disconnected"
                 rate[sec][msgID]+=1
             }
 
@@ -180,13 +182,13 @@ function processing(){
         
         if ($0 ~ /Total number of clients/){
             
-                msgID="total clients"
+                msgID="#total clients"
                 message=msgID
                 rate[sec][msgID]=$6
         }
             
         if ($0 ~ /Number of GUI clients/){
-                msgID="total gui clients"
+                msgID="#total gui clients"
                 message=msgID
                 rate[sec][msgID]=$6
         }
@@ -195,7 +197,7 @@ function processing(){
         
         if ($0 ~ /There are \[[0-9]{3,}\] objects of type/){
 
-                msgID="ObjectSent" $10 "<1000"
+                msgID="#ObjectSent" $10 "<1000"
                 message=msgID
                 rate[sec][msgID]+=1
                 match_num_per_mes["time"][msgID]=message
@@ -204,21 +206,21 @@ function processing(){
         
         if ($0 ~ /There are \[[0-9]{4,}\] objects of type/){
 
-                msgID="ObjectSent" $10 ">1000"
+                msgID="#ObjectSent" $10 ">1000"
                 message=msgID
                 rate[sec][msgID]+=1
                 match_num_per_mes["time"][msgID]=message
         }     
 
         if ($0 ~ /There are \[[0-9]{3,}\] objects of type/){
-                msgID="ObjectSent<1000"
+                msgID="#ObjectSent<1000"
                 message=msgID
                 rate[sec][msgID]+=1
         }        
 
         
         if ($0 ~ /There are \[[0-9]{4,}\] objects of type/){
-                msgID="ObjectSent>1000"
+                msgID="#ObjectSent>1000"
                 message=msgID
                 rate[sec][msgID]+=1
         }      
@@ -227,7 +229,7 @@ function processing(){
 
         if ($0 ~ /MSGCFG_CLIENTREGISTERED sent to.*Workspace/){
         #print $0
-                msgID="WorkspaceRegistered"
+                msgID="#WorkspaceRegistered"
                 message=msgID
                 rate[sec][msgID]+=1
                 match_num_per_mes["time"][msgID]=message
@@ -237,18 +239,39 @@ function processing(){
 #There are \[\d{3,}\] objects of type \[CfgPerson\].*\[Workspace\]
         
         if ($0 ~ /There are \[[0-9]{3,}\] objects of type \[CfgPerson\].*\[Workspace.+\]/){
-                msgID="WorkspacePersonsSent"
+                msgID="#WorkspacePersonsSent"
                 message=msgID
                 rate[sec][msgID]+=1
                 match_num_per_mes["time"][msgID]=message
         }
+#13:12:51.155 Trc 24206 Notification : Object [CfgPersonLastLogin], name [], DBID: [7767] is changed at server        
+        if ($0 ~ /Trc.+Notification.+Object.+name.+DBID.+is.+changed.+at.+server/){
+                msgID="#ObjectChanged:" $7
+                message=msgID
+                rate[sec][msgID]+=1
+                match_num_per_mes["time"][msgID]=message
+                #print message
+        }
+#08:03:38.034 Trc 24301 Extended info : Client [1608] disconnected, application [default], type [SCE], protocol [CFGLIB]
+
+        if ($0 ~ /Trc.+Extended.+info.+client.+disconnected.+application.+type.+protocol/){
+                msgID="#ClientDisconnected:" $13
+                message=msgID
+                rate[sec][msgID]+=1
+                match_num_per_mes["time"][msgID]=message
+                #print message
+        }
+
         
-        #print "debug: " msgID " message:" message
+        #print "debug: '" msgID "' message:'" message "' rate: " rate[sec][msgID]
         match_num_per_mes["time"][msgID]=message  # collection of unique column names
+        
+        #walk_array(rate[sec],sec)
+    
     }
     
     #print msgID
-    #walk_array(rate[sec],sec)
+    
 }
 
 function normalize(){
@@ -284,7 +307,7 @@ nn=asorti(arrr,ind,"@ind_str_asc")
         #printf("%.6s --> %s\n", ind[i],ind[i])
        # print "debug: i=" i
         #result[ind[i]]=getRateForCategory(arrr[ind[i]])
-        printf("%s,%s\n",ind[i],getLine(arrr[ind[i]]))
+        printf("%s;%s\n",ind[i],getLine(arrr[ind[i]]))
         #result["messsage"]=
         #walk_array(arrr,ind[i])
     }
@@ -476,9 +499,9 @@ function getLine(ar){
     #print "debug: "ind[i]
     #walk_array(arr)
         if (!ar[indx[k]]){
-            string = string  "ind:"k "," 0 ","
+            string = string  "ind:"k ";" 0 ";"
         }else{
-            string = string "ind:"k "," ar[indx[k]] ","
+            string = string "ind:"k ";" ar[indx[k]] ";"
         }
     }
     
